@@ -99,20 +99,8 @@ export_df = filtered_df.copy()
 excel_buffer = io.BytesIO()
 with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
     export_df.to_excel(writer, index=False, sheet_name='Filtered_Trials')
-    writer.save()
 
 st.download_button(
     label="📥 Download as Excel",
-    data=excel_buffer,
-    file_name="filtered_trials.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-# Export as JSON
-json_data = export_df.to_dict(orient='records')
-st.download_button(
-    label="📥 Download as JSON",
-    data=json.dumps(json_data, indent=2),
-    file_name="filtered_trials.json",
-    mime="application/json"
-)
+    data=excel_buffer.getvalue(),
+    file_name="filtered_trials
