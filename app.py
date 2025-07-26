@@ -173,11 +173,20 @@ if selected_compare != "Select":
     if not compare_df.empty:
         st.markdown("#### Outcome Measures Analysis")
         
-        # Count outcome measures
+        # Count outcome measures with simplified function
+        def count_measures(series):
+            if series.empty:
+                return 0
+            first_val = str(series.iloc[0])
+            if '|' in first_val:
+                return series.str.split('|').str.len()
+            else:
+                return series.apply(lambda x: 1 if x else 0)
+
         outcome_measures = pd.DataFrame({
-            'Primary': compare_df['Primary Outcome Measures'].apply(lambda x: len(x.split('|')) if '|' in str(compare_df['Primary Outcome Measures'].iloc[0]) else compare_df['Primary Outcome Measures'].apply(lambda x: 1 if x else 0),
-            'Secondary': compare_df['Secondary Outcome Measures'].apply(lambda x: len(x.split('|')) if '|' in str(compare_df['Secondary Outcome Measures'].iloc[0]) else compare_df['Secondary Outcome Measures'].apply(lambda x: 1 if x else 0),
-            'Other': compare_df['Other Outcome Measures'].apply(lambda x: len(x.split('|')) if '|' in str(compare_df['Other Outcome Measures'].iloc[0]) else compare_df['Other Outcome Measures'].apply(lambda x: 1 if x else 0)
+            'Primary': count_measures(compare_df['Primary Outcome Measures']),
+            'Secondary': count_measures(compare_df['Secondary Outcome Measures']),
+            'Other': count_measures(compare_df['Other Outcome Measures'])
         })
         
         # Plot outcome measures
