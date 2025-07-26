@@ -1,5 +1,11 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+
+# Set seaborn style
+sns.set_style("whitegrid")
 
 # Load and cache the data
 @st.cache_data
@@ -7,6 +13,8 @@ def load_data():
     df = pd.read_csv('cancer_survivor_data.csv')
     df.fillna('', inplace=True)
     df['Completion Date'] = pd.to_datetime(df['Completion Date'], errors='coerce')
+    df['Completion Year'] = df['Completion Date'].dt.year
+    df['Enrollment'] = pd.to_numeric(df['Enrollment'], errors='coerce')
     return df
 
 df = load_data()
@@ -33,7 +41,7 @@ selected_condition = st.sidebar.selectbox("Cancer Type", ["All"] + conditions)
 selected_intervention = st.sidebar.selectbox("Intervention/Drug", ["All"] + interventions)
 selected_phase = st.sidebar.selectbox("Phase", ["All"] + phases)
 
-# 📅 Date Range filter
+# Date Range filter
 min_date = df['Completion Date'].min()
 max_date = df['Completion Date'].max()
 start_date, end_date = st.sidebar.date_input(
@@ -58,7 +66,52 @@ filtered_df = filtered_df[
 
 st.markdown(f"### 🎯 {len(filtered_df)} trials found")
 
-# Main table showing key trial data
+# --------------------------
+# TRIALS OVERVIEW VISUALIZATION
+# --------------------------
+st.markdown("## 📊 Trial Overview Visualizations")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    # Trials by Phase
+    if not filtered_df.empty:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        phase_counts = filtered_df['Phases'].value_counts()
+        phase_counts.plot(kind='bar', color=sns.color_palette("husl", len(phase_counts)), ax=ax)
+        plt.title('Trials by Phase')
+        plt.xlabel('Phase')
+        plt.ylabel('Number of Trials')
+        st.pyplot(fig)
+    else:
+        st.warning("No data to display for Trials by Phase")
+
+with col2:
+    # Trials Over Time
+    if not filtered_df.empty and 'Completion Year' in filtered_df.columns:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        yearly_counts = filtered_df['Completion Year'].value_counts().sort_index()
+        yearly_counts.plot(kind='line', marker='o', color='teal', ax=ax)
+        plt.title('Trials Completed Over Time')
+        plt.xlabel('Year')
+        plt.ylabel('Number of Trials')
+        st.pyplot(fig)
+    else:
+        st.warning("No data to display for Trials Over Time")
+
+# Enrollment Distribution
+if not filtered_df.empty and 'Enrollment' in filtered_df.columns:
+    fig, ax = plt.subplots(figsize=(10, 4))
+    sns.histplot(filtered_df['Enrollment'].dropna(), bins=20, kde=True, color='purple', ax=ax)
+    plt.title('Distribution of Enrollment Numbers')
+    plt.xlabel('Number of Participants')
+    plt.ylabel('Frequency')
+    st.pyplot(fig)
+
+# --------------------------
+# MAIN TRIAL DATA TABLE
+# --------------------------
+st.markdown("## 📋 Trial Data Table")
 st.dataframe(filtered_df[[
     'NCT Number', 'Study Title', 'Conditions', 'Interventions', 
     'Phases', 'Enrollment', 'Completion Date'
@@ -66,7 +119,9 @@ st.dataframe(filtered_df[[
 
 st.markdown("---")
 
-# 🔗 Explore related cancer types dropdown
+# --------------------------
+# EXPLORE RELATED CANCER TYPES
+# --------------------------
 st.subheader("🔎 Explore Related Cancer Types")
 explore_conditions = get_unique_keywords(filtered_df['Conditions'])
 explore_cond = st.selectbox("Explore Cancer Type Trials:", options=["Select"] + explore_conditions)
@@ -74,6 +129,28 @@ explore_cond = st.selectbox("Explore Cancer Type Trials:", options=["Select"] + 
 if explore_cond != "Select":
     subset = df[df['Conditions'].str.contains(explore_cond, case=False, na=False)]
     st.markdown(f"### Trials related to **{explore_cond}** ({len(subset)})")
+    
+    # Visualization for the selected cancer type
+    if not subset.empty:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            fig, ax = plt.subplots(figsize=(8, 4))
+            subset['Phases'].value_counts().plot(kind='pie', autopct='%1.1f%%', 
+                                              colors=sns.color_palette("pastel"), ax=ax)
+            plt.title(f'Phase Distribution for {explore_cond}')
+            plt.ylabel('')
+            st.pyplot(fig)
+        
+        with col2:
+            if 'Completion Year' in subset.columns:
+                fig, ax = plt.subplots(figsize=(8, 4))
+                subset['Completion Year'].value_counts().sort_index().plot(kind='bar', color='skyblue', ax=ax)
+                plt.title(f'Trials Over Time for {explore_cond}')
+                plt.xlabel('Year')
+                plt.ylabel('Number of Trials')
+                st.pyplot(fig)
+    
     st.dataframe(subset[[
         'NCT Number', 'Study Title', 'Primary Outcome Measures',
         'Secondary Outcome Measures', 'Other Outcome Measures'
@@ -81,7 +158,9 @@ if explore_cond != "Select":
 
 st.markdown("---")
 
-# 📊 Compare trials for a selected cancer type
+# --------------------------
+# COMPARE TRIAL OUTCOMES
+# --------------------------
 st.subheader("📈 Compare Clinical Trial Outcomes by Cancer Type")
 
 selected_compare = st.selectbox("Select Cancer Type to Compare Trials:", ["Select"] + conditions)
@@ -89,7 +168,35 @@ selected_compare = st.selectbox("Select Cancer Type to Compare Trials:", ["Selec
 if selected_compare != "Select":
     compare_df = df[df['Conditions'].str.contains(selected_compare, case=False, na=False)]
     st.markdown(f"### Comparing outcomes for **{selected_compare}** ({len(compare_df)} trials)")
-
+    
+    # Outcome comparison visualizations
+    if not compare_df.empty:
+        st.markdown("#### Outcome Measures Analysis")
+        
+        # Count outcome measures
+        outcome_measures = pd.DataFrame({
+            'Primary': compare_df['Primary Outcome Measures'].apply(lambda x: len(x.split('|')) if '|' in str(compare_df['Primary Outcome Measures'].iloc[0]) else compare_df['Primary Outcome Measures'].apply(lambda x: 1 if x else 0),
+            'Secondary': compare_df['Secondary Outcome Measures'].apply(lambda x: len(x.split('|')) if '|' in str(compare_df['Secondary Outcome Measures'].iloc[0]) else compare_df['Secondary Outcome Measures'].apply(lambda x: 1 if x else 0),
+            'Other': compare_df['Other Outcome Measures'].apply(lambda x: len(x.split('|')) if '|' in str(compare_df['Other Outcome Measures'].iloc[0]) else compare_df['Other Outcome Measures'].apply(lambda x: 1 if x else 0)
+        })
+        
+        # Plot outcome measures
+        fig, ax = plt.subplots(figsize=(10, 5))
+        outcome_measures.mean().plot(kind='bar', color=['#4C72B0', '#55A868', '#C44E52'], ax=ax)
+        plt.title(f'Average Number of Outcome Measures for {selected_compare}')
+        plt.ylabel('Average Number of Measures')
+        plt.xticks(rotation=0)
+        st.pyplot(fig)
+        
+        # Enrollment vs Phase
+        if 'Enrollment' in compare_df.columns and 'Phases' in compare_df.columns:
+            fig, ax = plt.subplots(figsize=(10, 5))
+            sns.boxplot(data=compare_df, x='Phases', y='Enrollment', palette='Set2', ax=ax)
+            plt.title(f'Enrollment Distribution by Phase for {selected_compare}')
+            plt.xlabel('Phase')
+            plt.ylabel('Enrollment')
+            st.pyplot(fig)
+    
     st.dataframe(compare_df[[
         'NCT Number', 'Study Title', 'Phases', 'Enrollment', 'Completion Date',
         'Primary Outcome Measures', 'Secondary Outcome Measures', 'Other Outcome Measures'
