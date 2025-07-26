@@ -1,7 +1,5 @@
 streamlit
 pandas
-numpy
-sentence_transformers
-faiss-cpu
-openai
 altair
+wordcloud
+matplotlib
