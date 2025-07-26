@@ -1,18 +1,20 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+import io
+import json
 
 # ---------- Load & Cache Data ----------
 @st.cache_data
 def load_data():
     df = pd.read_csv('cancer_survivor_data.csv')
     df.fillna('', inplace=True)
-    # Convert 'Completion Date' to datetime
     df['Completion Date'] = pd.to_datetime(df['Completion Date'], errors='coerce')
     return df
 
 df = load_data()
 
-st.title("🧪 Cancer Clinical Trials Explorer & Outcome Comparator")
+st.title("🧪 Cancer Clinical Trials Explorer & Comparator")
 
 # ---------- Utility to extract keywords ----------
 def get_unique_keywords(series):
@@ -29,21 +31,13 @@ conditions = get_unique_keywords(df['Conditions'])
 interventions = get_unique_keywords(df['Interventions'])
 phases = sorted([p for p in df['Phases'].unique() if p])
 
-# Sidebar filters
 selected_condition = st.sidebar.selectbox("Filter by Cancer Type:", ["All"] + conditions)
 selected_intervention = st.sidebar.selectbox("Filter by Intervention/Drug:", ["All"] + interventions)
 selected_phase = st.sidebar.selectbox("Filter by Phase:", ["All"] + phases)
 
-# Date range filter
 min_date = df['Completion Date'].min()
 max_date = df['Completion Date'].max()
-
-start_date, end_date = st.sidebar.date_input(
-    "Filter by Completion Date Range:",
-    value=(min_date, max_date),
-    min_value=min_date,
-    max_value=max_date
-)
+start_date, end_date = st.sidebar.date_input("Filter by Completion Date Range:", value=(min_date, max_date))
 
 # ---------- Apply Filters ----------
 filtered_df = df.copy()
@@ -60,39 +54,65 @@ if start_date and end_date:
         (filtered_df['Completion Date'] <= pd.to_datetime(end_date))
     ]
 
-# ---------- Filtered Results ----------
+# ---------- Show Filtered Data ----------
 st.markdown(f"### 🎯 Showing {len(filtered_df)} studies after applying filters")
-
 st.dataframe(filtered_df[['NCT Number', 'Study Title', 'Conditions', 'Interventions',
                           'Phases', 'Enrollment', 'Completion Date']])
 
+# ---------- Compare Trials for Multiple Cancer Types ----------
+st.subheader("📈 Compare Clinical Trial Outcomes by Cancer Types")
+compare_conditions = st.multiselect("Select Cancer Types to Compare:", conditions)
+
+if compare_conditions:
+    pattern = '|'.join(compare_conditions)
+    compare_df = df[df['Conditions'].str.contains(pattern, case=False, na=False)]
+
+    tabs = st.tabs(compare_conditions)
+
+    for i, cancer_type in enumerate(compare_conditions):
+        with tabs[i]:
+            cancer_df = compare_df[compare_df['Conditions'].str.contains(cancer_type, case=False, na=False)]
+            st.markdown(f"### {cancer_type} ({len(cancer_df)} trials)")
+            st.dataframe(cancer_df[['NCT Number', 'Study Title', 'Phases', 'Enrollment', 'Completion Date',
+                                    'Primary Outcome Measures', 'Secondary Outcome Measures', 'Other Outcome Measures']])
+
+            # ---------- Outcome Pie Chart ----------
+            st.markdown("#### 📊 Outcome Type Distribution")
+            outcome_types = []
+            for i, row in cancer_df.iterrows():
+                if row['Primary Outcome Measures']: outcome_types.append("Primary")
+                if row['Secondary Outcome Measures']: outcome_types.append("Secondary")
+                if row['Other Outcome Measures']: outcome_types.append("Other")
+            outcome_series = pd.Series(outcome_types)
+            fig, ax = plt.subplots()
+            outcome_series.value_counts().plot.pie(autopct='%1.1f%%', startangle=90, ax=ax)
+            ax.set_ylabel('')
+            st.pyplot(fig)
+
+# ---------- Export Section ----------
 st.markdown("---")
+st.header("📤 Export Filtered Results")
 
-# ---------- Explore Related Cancer Types ----------
-explore_conditions = get_unique_keywords(filtered_df['Conditions'])
-explore_cond = st.selectbox("Explore Related Cancer Types:", options=["Select"] + explore_conditions)
+export_df = filtered_df.copy()
 
-if explore_cond != "Select":
-    subset = df[df['Conditions'].str.contains(explore_cond, case=False, na=False)]
-    st.markdown(f"### 📚 Trials related to **{explore_cond}** ({len(subset)})")
-    st.dataframe(subset[['NCT Number', 'Study Title',
-                         'Primary Outcome Measures',
-                         'Secondary Outcome Measures',
-                         'Other Outcome Measures']])
+# Export as Excel
+excel_buffer = io.BytesIO()
+with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+    export_df.to_excel(writer, index=False, sheet_name='Filtered_Trials')
+    writer.save()
 
-st.markdown("---")
+st.download_button(
+    label="📥 Download as Excel",
+    data=excel_buffer,
+    file_name="filtered_trials.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
-# ---------- Outcome Comparison ----------
-st.header("📊 Compare Clinical Trial Outcomes by Cancer Type")
-
-selected_cancer_compare = st.selectbox("Select Cancer Type to Compare Trials:", ["Select"] + conditions)
-
-if selected_cancer_compare != "Select":
-    related_trials = df[df['Conditions'].str.contains(selected_cancer_compare, case=False, na=False)]
-    st.markdown(f"### 🧬 Found {len(related_trials)} trials for **{selected_cancer_compare}**")
-
-    comparison_columns = [
-        'NCT Number', 'Study Title', 'Phases', 'Enrollment', 'Completion Date',
-        'Primary Outcome Measures', 'Secondary Outcome Measures', 'Other Outcome Measures'
-    ]
-    st.dataframe(related_trials[comparison_columns].reset_index(drop=True))
+# Export as JSON
+json_data = export_df.to_dict(orient='records')
+st.download_button(
+    label="📥 Download as JSON",
+    data=json.dumps(json_data, indent=2),
+    file_name="filtered_trials.json",
+    mime="application/json"
+)
