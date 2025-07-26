@@ -3,3 +3,4 @@ pandas
 altair
 wordcloud
 matplotlib
+xlsxwriter
