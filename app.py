@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime
 
-# Set seaborn style
-sns.set_style("whitegrid")
+# Set matplotlib style
+plt.style.use('ggplot')
 
 # Load and cache the data
 @st.cache_data
@@ -74,24 +73,25 @@ st.markdown("## 📊 Trial Overview Visualizations")
 col1, col2 = st.columns(2)
 
 with col1:
-    # Trials by Phase
+    # Trials by Phase (Matplotlib bar chart)
     if not filtered_df.empty:
         fig, ax = plt.subplots(figsize=(8, 4))
         phase_counts = filtered_df['Phases'].value_counts()
-        phase_counts.plot(kind='bar', color=sns.color_palette("husl", len(phase_counts)), ax=ax)
+        phase_counts.plot(kind='bar', color=['#1f77b4', '#ff7f0e', '#2ca02c'], ax=ax)
         plt.title('Trials by Phase')
         plt.xlabel('Phase')
         plt.ylabel('Number of Trials')
+        plt.xticks(rotation=45)
         st.pyplot(fig)
     else:
         st.warning("No data to display for Trials by Phase")
 
 with col2:
-    # Trials Over Time
+    # Trials Over Time (Matplotlib line chart)
     if not filtered_df.empty and 'Completion Year' in filtered_df.columns:
         fig, ax = plt.subplots(figsize=(8, 4))
         yearly_counts = filtered_df['Completion Year'].value_counts().sort_index()
-        yearly_counts.plot(kind='line', marker='o', color='teal', ax=ax)
+        yearly_counts.plot(kind='line', marker='o', color='green', ax=ax)
         plt.title('Trials Completed Over Time')
         plt.xlabel('Year')
         plt.ylabel('Number of Trials')
@@ -99,10 +99,10 @@ with col2:
     else:
         st.warning("No data to display for Trials Over Time")
 
-# Enrollment Distribution
+# Enrollment Distribution (Matplotlib histogram)
 if not filtered_df.empty and 'Enrollment' in filtered_df.columns:
     fig, ax = plt.subplots(figsize=(10, 4))
-    sns.histplot(filtered_df['Enrollment'].dropna(), bins=20, kde=True, color='purple', ax=ax)
+    ax.hist(filtered_df['Enrollment'].dropna(), bins=20, color='purple', edgecolor='black')
     plt.title('Distribution of Enrollment Numbers')
     plt.xlabel('Number of Participants')
     plt.ylabel('Frequency')
@@ -136,8 +136,11 @@ if explore_cond != "Select":
         
         with col1:
             fig, ax = plt.subplots(figsize=(8, 4))
-            subset['Phases'].value_counts().plot(kind='pie', autopct='%1.1f%%', 
-                                              colors=sns.color_palette("pastel"), ax=ax)
+            subset['Phases'].value_counts().plot(
+                kind='pie', autopct='%1.1f%%', 
+                colors=['#ff9999','#66b3ff','#99ff99'],
+                ax=ax
+            )
             plt.title(f'Phase Distribution for {explore_cond}')
             plt.ylabel('')
             st.pyplot(fig)
@@ -145,10 +148,13 @@ if explore_cond != "Select":
         with col2:
             if 'Completion Year' in subset.columns:
                 fig, ax = plt.subplots(figsize=(8, 4))
-                subset['Completion Year'].value_counts().sort_index().plot(kind='bar', color='skyblue', ax=ax)
+                subset['Completion Year'].value_counts().sort_index().plot(
+                    kind='bar', color='skyblue', ax=ax
+                )
                 plt.title(f'Trials Over Time for {explore_cond}')
                 plt.xlabel('Year')
                 plt.ylabel('Number of Trials')
+                plt.xticks(rotation=45)
                 st.pyplot(fig)
     
     st.dataframe(subset[[
@@ -189,18 +195,30 @@ if selected_compare != "Select":
             'Other': count_measures(compare_df['Other Outcome Measures'])
         })
         
-        # Plot outcome measures
+        # Plot outcome measures (Matplotlib bar chart)
         fig, ax = plt.subplots(figsize=(10, 5))
-        outcome_measures.mean().plot(kind='bar', color=['#4C72B0', '#55A868', '#C44E52'], ax=ax)
+        outcome_measures.mean().plot(
+            kind='bar', 
+            color=['#4C72B0', '#55A868', '#C44E52'], 
+            ax=ax
+        )
         plt.title(f'Average Number of Outcome Measures for {selected_compare}')
         plt.ylabel('Average Number of Measures')
         plt.xticks(rotation=0)
         st.pyplot(fig)
         
-        # Enrollment vs Phase
+        # Enrollment vs Phase (Matplotlib boxplot)
         if 'Enrollment' in compare_df.columns and 'Phases' in compare_df.columns:
             fig, ax = plt.subplots(figsize=(10, 5))
-            sns.boxplot(data=compare_df, x='Phases', y='Enrollment', palette='Set2', ax=ax)
+            
+            # Group data by phase
+            groups = []
+            labels = []
+            for phase in sorted(compare_df['Phases'].unique()):
+                groups.append(compare_df[compare_df['Phases'] == phase]['Enrollment'].dropna())
+                labels.append(phase)
+            
+            ax.boxplot(groups, labels=labels)
             plt.title(f'Enrollment Distribution by Phase for {selected_compare}')
             plt.xlabel('Phase')
             plt.ylabel('Enrollment')
