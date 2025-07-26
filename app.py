@@ -18,7 +18,7 @@ def load_data():
 
 df = load_data()
 
-st.title("Cancer Survivor Trials Explorer 🧬")
+st.title("Cancer Survivor Trials Explorer 1700+ clinical trial 🧬")
 
 # Utility: extract unique keywords from pipe-separated fields
 def get_unique_keywords(series):
