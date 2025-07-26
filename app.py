@@ -41,17 +41,15 @@ if selected_phase != "All":
 
 st.markdown(f"### Showing {len(filtered_df)} studies after filtering")
 
-# Show clickable keywords from filtered data — e.g., conditions again for exploration
+# Explore related Cancer Types as dropdown (from filtered data)
 explore_conditions = get_unique_keywords(filtered_df['Conditions'])
-st.write("### Explore related Cancer Types")
-for cond in explore_conditions:
-    if st.button(cond):
-        # When clicked, show trials for this condition
-        subset = df[df['Conditions'].str.contains(cond, case=False, na=False)]
-        st.write(f"Trials related to **{cond}** ({len(subset)})")
-        st.dataframe(subset[['NCT Number', 'Study Title', 'Primary Outcome Measures']])
+explore_cond = st.selectbox("Explore related Cancer Types:", options=["Select"] + explore_conditions)
+
+if explore_cond != "Select":
+    subset = df[df['Conditions'].str.contains(explore_cond, case=False, na=False)]
+    st.write(f"Trials related to **{explore_cond}** ({len(subset)})")
+    st.dataframe(subset[['NCT Number', 'Study Title', 'Primary Outcome Measures']])
 
 # Display filtered trial table
 st.write("### Filtered Clinical Trials")
 st.dataframe(filtered_df[['NCT Number', 'Study Title', 'Conditions', 'Interventions', 'Primary Outcome Measures', 'Secondary Outcome Measures']])
-
